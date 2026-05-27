@@ -1,0 +1,56 @@
+# Cloud Run service definition for the GitHub MCP server.
+#
+# Single-container — no sidecar needed.
+# GitHub API calls are made directly from the server using the PAT.
+#
+# DEPLOY: gcloud builds submit --config cloudbuild.yaml
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: github-mcp
+  labels:
+    cloud.googleapis.com/location: us-central1
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - name: github-mcp
+          image: gcr.io/your-gcp-project/github-mcp
+          ports:
+            - name: http1
+              containerPort: 8080
+          env:
+            - name: ALLOWED_DOMAIN
+              value: "example.com"
+            - name: SERVER_URL
+              value: "https://your-service.example.com"
+            - name: GITHUB_PAT
+              valueFrom:
+                secretKeyRef:
+                  name: github-pat
+                  key: latest
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: github-oauth-id
+                  key: latest
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: github-oauth-secret
+                  key: latest
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+            initialDelaySeconds: 10
+            periodSeconds: 30
